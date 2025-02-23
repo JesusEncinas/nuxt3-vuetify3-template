@@ -1,5 +1,6 @@
 <script lang="ts" setup>
-import { VListItemSubtitle } from 'vuetify/components';
+import { ref } from 'vue';
+import { useFetch } from '#app'; // Si usas Nuxt
 
 export interface Character {
   info: Info;
@@ -20,69 +21,109 @@ export interface Result {
   species: string;
   type: string;
   gender: string;
-  origin: Location;
-  location: Location;
   image: string;
-  episode: string[];
-  url: string;
-  created: Date;
 }
 
+const { data } = await useFetch<Character>('https://rickandmortyapi.com/api/character');
 
-const { data } = await useFetch<Character>('https://rickandmortyapi.com/api/character')
+// Convertimos los resultados a una lista reactiva para poder manipularlos
+const characters = ref<Result[]>(data.value?.results || []);
 
+// Estado para controlar el diálogo del formulario
+const dialog = ref(false);
+const editing = ref(false);
+const currentCharacter = ref<Result | null>(null);
+
+// Función para abrir el formulario con un personaje seleccionado
+const openDialog = (character: Result | null = null) => {
+  currentCharacter.value = character
+    ? { ...character } // Clonar para evitar modificar el original hasta confirmar
+    : { id: Date.now(), name: '', status: '', species: '', type: '', gender: '', image: '' };
+  editing.value = !!character;
+  dialog.value = true;
+};
+
+// Guardar personaje (añadir o editar)
+const saveCharacter = () => {
+  if (!currentCharacter.value) return;
+
+  if (editing.value) {
+    // Editar personaje existente
+    const index = characters.value.findIndex((c) => c.id === currentCharacter.value?.id);
+    if (index !== -1) {
+      characters.value[index] = { ...currentCharacter.value };
+    }
+  } else {
+    // Agregar nuevo personaje
+    characters.value.push({ ...currentCharacter.value });
+  }
+
+  dialog.value = false;
+};
+
+// Eliminar personaje
+const deleteCharacter = (id: number) => {
+  characters.value = characters.value.filter((c) => c.id !== id);
+};
 </script>
+
 <template>
   <v-container fluid>
-    <div >
-      <v-row>
-        <v-col v-for="item in data?.results" :key="item.id">
-          <v-card class="mx-auto" max-width="344">
-            <v-img height="200px" :src="item.image" cover></v-img>
+    <v-row>
+      <v-col v-for="item in characters" :key="item.id" cols="12" md="4">
+        <v-card class="mx-auto" max-width="344">
+          <v-img height="200px" :src="item.image || 'https://via.placeholder.com/200'" cover></v-img>
 
-            <v-card-title>
-              {{ item.name }}
-            </v-card-title>
+          <v-card-title>{{ item.name }}</v-card-title>
 
-            <v-card-subtitle>
-              1,000 miles of wonder
-            </v-card-subtitle>
+          <v-card-subtitle>{{ item.species }} - {{ item.status }}</v-card-subtitle>
 
-            <v-card-actions>
-              <v-btn color="orange-lighten-2" text="Explore"></v-btn>
+          <v-card-actions>
+            <v-btn color="blue" @click="openDialog(item)">Editar</v-btn>
+            <v-btn color="red" @click="deleteCharacter(item.id)">Eliminar</v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-col>
+    </v-row>
 
-              <v-spacer></v-spacer>
+    <!-- Botón para agregar un nuevo personaje -->
+    <v-btn color="green" class="mt-4" @click="openDialog()">Agregar Personaje</v-btn>
 
-              <!-- <v-btn :icon="show ? 'mdi-chevron-up' : 'mdi-chevron-down'" @click="show = !show"></v-btn> -->
-            </v-card-actions>
+    <!-- Diálogo de formulario -->
+    <v-dialog v-model="dialog" persistent max-width="500px">
+      <v-card>
+        <v-card-title>
+          <span class="text-h5">{{ editing ? 'Editar' : 'Agregar' }} Personaje</span>
+        </v-card-title>
 
-            <v-expand-transition>
-              <div v-show="false">
-                <v-divider></v-divider>
+        <v-card-text>
+          <v-container>
+            <v-row>
+              <v-col cols="12">
+                <v-text-field label="Nombre" v-model="currentCharacter!.name" required></v-text-field>
+              </v-col>
+              <v-col cols="12">
+                <v-text-field label="Estatus" v-model="currentCharacter!.status"></v-text-field>
+              </v-col>
+              <v-col cols="12">
+                <v-text-field label="Especie" v-model="currentCharacter!.species"></v-text-field>
+              </v-col>
+              <v-col cols="12">
+                <v-text-field label="Género" v-model="currentCharacter!.gender"></v-text-field>
+              </v-col>
+              <v-col cols="12">
+                <v-text-field label="Imagen URL" v-model="currentCharacter!.image"></v-text-field>
+              </v-col>
+            </v-row>
+          </v-container>
+        </v-card-text>
 
-                <v-card-text>
-                  I'm a thing. But, like most politicians, he promised more than he could deliver. You won't have time
-                  for
-                  sleeping, soldier, not with all the bed making you'll be doing. Then we'll go with that data file!
-                  Hey,
-                  you
-                  add a one and two zeros to that or we walk! You're going to do his laundry? I've got to find a way to
-                  escape.
-                </v-card-text>
-              </div>
-            </v-expand-transition>
-          </v-card>
-        </v-col>
-      </v-row>
-
-    </div>
-    <!-- {{ data?.results }} -->
-
-
-    <v-btn>Hello</v-btn>
-
-    <VBtn>Hola</VBtn>
-
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="red" @click="dialog = false">Cancelar</v-btn>
+          <v-btn color="green" @click="saveCharacter">Guardar</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
-
 </template>
